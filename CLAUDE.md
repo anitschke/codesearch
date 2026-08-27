@@ -20,4 +20,3 @@ go test ./...
 
 - `index/` — Trigram index creation (`write.go`, `merge.go`) and reading (`read.go`)
 - `regexp/` — Regexp-to-trigram query compiler
-- `cmd/` — CLI tools (cindex, csearch, cgrep, csweb)
