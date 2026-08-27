@@ -1,6 +1,6 @@
 # codesearch fork
 
-This is a fork of https://github.com/google/codesearch maintained at
+This is a fork of Russ Cox's https://github.com/google/codesearch maintained at
 https://github.com/anitschke/codesearch.
 
 ## Tracking changes
