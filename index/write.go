@@ -39,11 +39,12 @@ import (
 type IndexWriter struct {
 	LogSkip bool // log information about skipped files
 	Verbose bool // log status using package log
-	Zip     bool // index content of zip files
+	Zip     bool // index content of zip files (shorthand for WithZipExtensions(".zip"))
 
 	maxFileLen      int64
 	maxLineLen      int
 	maxTextTrigrams int
+	zipExtensions   []string // file extensions to treat as zip archives
 
 	trigram *sparse.Set // trigrams for the current file
 	buf     [32]byte    // scratch buffer
@@ -96,6 +97,22 @@ func WithMaxTextTrigrams(n int) CreateOption {
 	}
 }
 
+// WithZipExtensions configures which file extensions should be treated as zip
+// archives and have their contents indexed. Each extension must include the
+// leading dot (e.g., ".zip", ".slx", ".jar"); it panics if any extension does
+// not start with ".".
+func WithZipExtensions(exts ...string) CreateOption {
+	for _, ext := range exts {
+		if !strings.HasPrefix(ext, ".") {
+			panic(fmt.Sprintf("index.WithZipExtensions: extension %q must start with \".\"", ext))
+		}
+	}
+	return func(ix *IndexWriter) {
+		ix.Zip = true
+		ix.zipExtensions = append(ix.zipExtensions, exts...)
+	}
+}
+
 const npost = 64 << 20 / 8 // 64 MB worth of post entries
 
 // Create returns a new IndexWriter that will write the index to file.
@@ -105,6 +122,7 @@ func Create(file string, opts ...CreateOption) *IndexWriter {
 		maxFileLen:      defaultMaxFileLen,
 		maxLineLen:      defaultMaxLineLen,
 		maxTextTrigrams: defaultMaxTextTrigrams,
+		zipExtensions:   []string{".zip"},
 		trigram:         sparse.NewSet(1 << 24),
 		nameData:        bufCreate(""),
 		nameIndex:       bufCreate(""),
@@ -119,6 +137,22 @@ func Create(file string, opts ...CreateOption) *IndexWriter {
 	}
 	ix.names = NewPathWriter(ix.nameData, ix.nameIndex, writeVersion, nameGroupSize)
 	return ix
+}
+
+// isZipExtension reports whether the file should be treated as a zip archive.
+// Zip must be true (set directly or via WithZipExtensions) for any zip
+// indexing to occur. The zipExtensions slice (default: [".zip"]) determines
+// which extensions are recognized.
+func (ix *IndexWriter) isZipExtension(name string) bool {
+	if !ix.Zip {
+		return false
+	}
+	for _, ext := range ix.zipExtensions {
+		if strings.HasSuffix(name, ext) {
+			return true
+		}
+	}
+	return false
 }
 
 // isValidName reports whether name is a valid name to store in the index.
@@ -203,7 +237,7 @@ func (ix *IndexWriter) Add(name string, f io.Reader) error {
 		return fmt.Errorf("malformed name %q", name)
 	}
 
-	if strings.HasSuffix(name, ".zip") && ix.Zip {
+	if ix.isZipExtension(name) {
 		f, ok := f.(interface {
 			io.ReaderAt
 			Stat() (os.FileInfo, error)
