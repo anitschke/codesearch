@@ -11,6 +11,7 @@ This is a fork of Russ Cox's https://github.com/google/codesearch.
 - Add GitHub Actions CI to run Go tests on PRs and master. ([#2](https://github.com/anitschke/codesearch/pull/2))
 - Remove `cmd/` and `lib/` directories — this fork is consumed as a library only. ([#3](https://github.com/anitschke/codesearch/pull/3))
 - Add versioning documentation and update module path to `github.com/anitschke/codesearch`. ([#4](https://github.com/anitschke/codesearch/pull/4))
+- Add configurable index limits (`maxFileLen`, `maxLineLen`, `maxTextTrigrams`) via functional options on `Create`. ([#5](https://github.com/anitschke/codesearch/pull/5))
 
 ## Versioning
 
