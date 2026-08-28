@@ -12,6 +12,7 @@ This is a fork of Russ Cox's https://github.com/google/codesearch.
 - Remove `cmd/` and `lib/` directories — this fork is consumed as a library only. ([#3](https://github.com/anitschke/codesearch/pull/3))
 - Add versioning documentation and update module path to `github.com/anitschke/codesearch`. ([#4](https://github.com/anitschke/codesearch/pull/4))
 - Add configurable index limits (`maxFileLen`, `maxLineLen`, `maxTextTrigrams`) via functional options on `Create`. ([#5](https://github.com/anitschke/codesearch/pull/5))
+- Add `WithZipExtensions` option to configure which file extensions are treated as zip archives for indexing (e.g., `.slx`, `.jar`). ([#6](https://github.com/anitschke/codesearch/pull/6))
 
 ## Versioning
 
