@@ -41,6 +41,10 @@ type IndexWriter struct {
 	Verbose bool // log status using package log
 	Zip     bool // index content of zip files
 
+	maxFileLen      int64
+	maxLineLen      int
+	maxTextTrigrams int
+
 	trigram *sparse.Set // trigrams for the current file
 	buf     [32]byte    // scratch buffer
 
@@ -64,19 +68,54 @@ type IndexWriter struct {
 	main  *Buffer // main index file
 }
 
+// CreateOption is a functional option for configuring an IndexWriter.
+type CreateOption func(*IndexWriter)
+
+// WithMaxFileLen sets the maximum file length (in bytes) that will be indexed.
+// Files longer than this are skipped. Default: 1<<30 (1 GB).
+func WithMaxFileLen(n int64) CreateOption {
+	return func(ix *IndexWriter) {
+		ix.maxFileLen = n
+	}
+}
+
+// WithMaxLineLen sets the maximum line length (in bytes) that will be indexed.
+// Files containing lines longer than this are skipped. Default: 2000.
+func WithMaxLineLen(n int) CreateOption {
+	return func(ix *IndexWriter) {
+		ix.maxLineLen = n
+	}
+}
+
+// WithMaxTextTrigrams sets the maximum number of distinct trigrams a file may
+// contain to be indexed. Files exceeding this are assumed to be non-text and
+// skipped. Default: 20000.
+func WithMaxTextTrigrams(n int) CreateOption {
+	return func(ix *IndexWriter) {
+		ix.maxTextTrigrams = n
+	}
+}
+
 const npost = 64 << 20 / 8 // 64 MB worth of post entries
 
 // Create returns a new IndexWriter that will write the index to file.
-func Create(file string) *IndexWriter {
+// Options can be provided to override default tuning parameters.
+func Create(file string, opts ...CreateOption) *IndexWriter {
 	ix := &IndexWriter{
-		trigram:   sparse.NewSet(1 << 24),
-		nameData:  bufCreate(""),
-		nameIndex: bufCreate(""),
-		postFile:  bufCreate(""),
-		postIndex: bufCreate(""),
-		main:      bufCreate(file),
-		post:      make([]postEntry, 0, npost),
-		inbuf:     make([]byte, 1<<20),
+		maxFileLen:      defaultMaxFileLen,
+		maxLineLen:      defaultMaxLineLen,
+		maxTextTrigrams: defaultMaxTextTrigrams,
+		trigram:         sparse.NewSet(1 << 24),
+		nameData:        bufCreate(""),
+		nameIndex:       bufCreate(""),
+		postFile:        bufCreate(""),
+		postIndex:       bufCreate(""),
+		main:            bufCreate(file),
+		post:            make([]postEntry, 0, npost),
+		inbuf:           make([]byte, 1<<20),
+	}
+	for _, opt := range opts {
+		opt(ix)
 	}
 	ix.names = NewPathWriter(ix.nameData, ix.nameIndex, writeVersion, nameGroupSize)
 	return ix
@@ -123,15 +162,17 @@ func makePostEntry(trigram uint32, fileid int) postEntry {
 	return postEntry(trigram)<<40 | postEntry(fileid)
 }
 
-// Tuning constants for detecting text files.
+// Default tuning constants for detecting text files.
 // A file is assumed not to be text files (and thus not indexed)
 // if it contains an invalid UTF-8 sequences, if it is longer than maxFileLength
 // bytes, if it contains a line longer than maxLineLen bytes,
 // or if it contains more than maxTextTrigrams distinct trigrams.
+//
+// These defaults can be overridden via CreateOption functions passed to Create.
 const (
-	maxFileLen      = 1 << 30
-	maxLineLen      = 2000
-	maxTextTrigrams = 20000
+	defaultMaxFileLen      = 1 << 30
+	defaultMaxLineLen      = 2000
+	defaultMaxTextTrigrams = 20000
 )
 
 // AddRoots adds the given roots to the index's list of roots.
@@ -256,13 +297,13 @@ func (ix *IndexWriter) add(name string, f io.Reader) error {
 			}
 			return nil
 		}
-		if n > maxFileLen {
+		if n > ix.maxFileLen {
 			if ix.LogSkip {
 				log.Printf("%s: too long, ignoring\n", name)
 			}
 			return nil
 		}
-		if linelen++; linelen > maxLineLen {
+		if linelen++; linelen > ix.maxLineLen {
 			if ix.LogSkip {
 				log.Printf("%s: very long lines, ignoring\n", name)
 			}
@@ -272,7 +313,7 @@ func (ix *IndexWriter) add(name string, f io.Reader) error {
 			linelen = 0
 		}
 	}
-	if ix.trigram.Len() > maxTextTrigrams {
+	if ix.trigram.Len() > ix.maxTextTrigrams {
 		if ix.LogSkip {
 			log.Printf("%s: too many trigrams, probably not text, ignoring\n", name)
 		}

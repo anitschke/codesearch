@@ -8,7 +8,7 @@ https://github.com/anitschke/codesearch.
 When making changes to this fork, add a bullet point to the "What is different
 about this fork?" section in `README.md`. Each bullet should be a short (1-2
 sentence) description of the change followed by a link to the PR where the
-change was made.
+change was made. Keep the list in PR number order.
 
 ## Build and test
 
