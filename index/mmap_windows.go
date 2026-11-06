@@ -32,6 +32,16 @@ func mmapFile(f *os.File) mmapData {
 	if err != nil {
 		log.Fatalf("MapViewOfFile %s: %v", f.Name(), err)
 	}
+	// The view keeps the mapping alive until it is unmapped, so the mapping
+	// handle isn't needed anymore. Keeping it open would leak it.
+	if err := syscall.CloseHandle(h); err != nil {
+		log.Fatalf("CloseHandle %s: %v", f.Name(), err)
+	}
 	data := (*[1 << 30]byte)(unsafe.Pointer(addr))
 	return mmapData{f, data[:size]}
+}
+
+// munmap unmaps data returned by mmapFile.
+func munmap(d []byte) error {
+	return syscall.UnmapViewOfFile(uintptr(unsafe.Pointer(&d[0])))
 }
