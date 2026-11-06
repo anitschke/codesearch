@@ -14,6 +14,7 @@ This is a fork of Russ Cox's https://github.com/google/codesearch.
 - Add configurable index limits (`maxFileLen`, `maxLineLen`, `maxTextTrigrams`) via functional options on `Create`. ([#5](https://github.com/anitschke/codesearch/pull/5))
 - Add `WithZipExtensions` option to configure which file extensions are treated as zip archives for indexing (e.g., `.slx`, `.jar`). ([#6](https://github.com/anitschke/codesearch/pull/6))
 - Close the index file and temporary files when `IndexWriter.Flush` finishes, and unmap the temporary posting file, so they no longer stay open (on Windows, open files can't be deleted and keep their volume from being dismounted). ([#7](https://github.com/anitschke/codesearch/pull/7))
+- Merge upstream [`74a12a9`](https://github.com/google/codesearch/commit/74a12a911a79b901d1158c48d011b2da1b090fc9), a small `sortPost` performance optimization that avoids copying its counting array. ([#8](https://github.com/anitschke/codesearch/pull/8))
 
 ## Versioning
 

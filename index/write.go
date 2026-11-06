@@ -883,7 +883,7 @@ func sortPost(post []postEntry) {
 		sortN[r]++
 	}
 	tot := 0
-	for i, count := range sortN {
+	for i, count := range &sortN {
 		sortN[i] = tot
 		tot += count
 	}
@@ -903,7 +903,7 @@ func sortPost(post []postEntry) {
 		sortN[r]++
 	}
 	tot = 0
-	for i, count := range sortN {
+	for i, count := range &sortN {
 		sortN[i] = tot
 		tot += count
 	}
