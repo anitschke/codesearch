@@ -29,3 +29,9 @@ func mmapFile(f *os.File) mmapData {
 	}
 	return mmapData{f, data[:n]}
 }
+
+// munmap unmaps data returned by mmapFile.
+func munmap(d []byte) error {
+	// mmapFile maps whole pages but returns only the file's bytes.
+	return syscall.Munmap(d[:cap(d)])
+}

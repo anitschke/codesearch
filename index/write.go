@@ -427,14 +427,16 @@ func (ix *IndexWriter) Flush() {
 		ix.main.WriteString(trailerMagicV2)
 	}
 
-	os.Remove(ix.nameData.name)
-	os.Remove(ix.postFile.name)
-	os.Remove(ix.nameIndex.name)
-	os.Remove(ix.postIndex.name)
-
 	log.Printf("%d data bytes, %d index bytes", ix.totalBytes, ix.main.Offset())
 
-	ix.main.Flush()
+	// Close every file before removing the temporary ones: on Windows, open
+	// files can't be deleted, and an open index file keeps the volume it is
+	// on from being locked or dismounted.
+	ix.main.close()
+	for _, b := range []*Buffer{ix.nameData, ix.postFile, ix.nameIndex, ix.postIndex} {
+		b.close()
+		os.Remove(b.name)
+	}
 }
 
 func copyFile(dst, src *Buffer) {
@@ -505,7 +507,8 @@ func (ix *IndexWriter) mergePost(out *Buffer) {
 
 	if len(ix.postEnds) > 0 {
 		log.Printf("merge mem + %d MB disk", ix.postEnds[len(ix.postEnds)-1]>>20)
-		h.addFile(ix.postFile, ix.postEnds)
+		m := h.addFile(ix.postFile, ix.postEnds)
+		defer m.unmap()
 	}
 	sortPost(ix.post)
 	h.addMem(ix.post)
@@ -543,9 +546,13 @@ type postHeap struct {
 	ch []*postChunk
 }
 
-func (h *postHeap) addFile(w *Buffer, ends []int) {
+// addFile adds the post entries flushed to w, ending at ends, to the heap. It
+// returns the mapping of w, which the caller must unmap once it is done with
+// the heap.
+func (h *postHeap) addFile(w *Buffer, ends []int) mmapData {
 	w.Flush()
-	data := mmapFile(w.file).d
+	m := mmapFile(w.file)
+	data := m.d
 	start := 0
 	for _, end := range ends {
 		var r allPostReader
@@ -553,6 +560,7 @@ func (h *postHeap) addFile(w *Buffer, ends []int) {
 		h.add(r.next)
 		start = end
 	}
+	return m
 }
 
 func (h *postHeap) addMem(x []postEntry) {
@@ -756,6 +764,18 @@ func (b *Buffer) Flush() {
 	}
 	b.fileOff += int64(len(b.buf))
 	b.buf = b.buf[:0]
+}
+
+// close flushes and closes the file.
+func (b *Buffer) close() {
+	b.Flush()
+	if b.file == nil {
+		return
+	}
+	if err := b.file.Close(); err != nil {
+		log.Fatalf("closing %s: %v", b.name, err)
+	}
+	b.file = nil
 }
 
 // finish flushes the file to disk and returns an open file ready for reading.

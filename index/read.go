@@ -650,6 +650,16 @@ type mmapData struct {
 	d []byte
 }
 
+// unmap unmaps the data. It does not close the file.
+func (m mmapData) unmap() {
+	if len(m.d) == 0 {
+		return
+	}
+	if err := munmap(m.d); err != nil {
+		log.Fatalf("munmap %s: %v", m.f.Name(), err)
+	}
+}
+
 // mmap maps the given file into memory.
 func mmap(file string) mmapData {
 	f, err := os.Open(file)

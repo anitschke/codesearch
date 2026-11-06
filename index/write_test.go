@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -409,4 +410,39 @@ func TestZip(t *testing.T) {
 	checkPosting(t, ix, "wor", 0, 1, 2)
 	checkPosting(t, ix, "now", 3, 4, 6)
 	checkPosting(t, ix, "pot", 4, 5, 7)
+}
+
+// TestFlushClosesFiles checks that Flush closes the index file and removes the
+// temporary files, both with and without post entries flushed to disk (which
+// are mmapped back in). On Windows, open files can't be deleted and keep the
+// volume they are on from being dismounted.
+func TestFlushClosesFiles(t *testing.T) {
+	for _, doFlush := range []bool{false, true} {
+		t.Run(fmt.Sprint("doFlush=", doFlush), func(t *testing.T) {
+			out := filepath.Join(t.TempDir(), "index")
+			ix := Create(out)
+			buffers := []*Buffer{ix.main, ix.nameData, ix.postFile, ix.nameIndex, ix.postIndex}
+			for name, data := range trivialFiles {
+				ix.Add(name, strings.NewReader(data))
+			}
+			if doFlush {
+				ix.flushPost()
+			}
+			ix.Flush()
+
+			for _, b := range buffers {
+				if b.file != nil {
+					t.Errorf("%s is still open", b.name)
+				}
+			}
+			for _, b := range buffers[1:] {
+				if _, err := os.Stat(b.name); !os.IsNotExist(err) {
+					t.Errorf("temporary file %s was not removed: %v", b.name, err)
+				}
+			}
+			if err := os.Remove(out); err != nil {
+				t.Errorf("removing index file: %v", err)
+			}
+		})
+	}
 }
